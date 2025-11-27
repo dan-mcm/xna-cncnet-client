@@ -1543,22 +1543,40 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             IniSection settings = new IniSection("Settings");
 
             settings.SetStringValue("Name", ProgramConstants.PLAYERNAME);
-            settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
-            settings.SetStringValue("UIGameMode", GameMode.UntranslatedUIName);
-            settings.SetStringValue("UIMapName", Map.UntranslatedName);
-
-            // needed for translation in game loading lobbies
-            if (Map.Official)
-                settings.SetStringValue("MapID", Map.BaseFilePath);
-
-            settings.SetIntValue("PlayerCount", Players.Count);
+            
             int myIndex = Players.FindIndex(c => c.Name == ProgramConstants.PLAYERNAME);
-            settings.SetIntValue("Side", houseInfos[myIndex].InternalSideIndex);
-            settings.SetBooleanValue("IsSpectator", houseInfos[myIndex].IsSpectator);
-            settings.SetIntValue("Color", houseInfos[myIndex].ColorIndex);
-            settings.SetStringValue("CustomLoadScreen", LoadingScreenController.GetLoadScreenName(houseInfos[myIndex].InternalSideIndex.ToString()));
-            settings.SetIntValue("AIPlayers", AIPlayers.Count);
-            settings.SetIntValue("Seed", RandomSeed);
+            
+            // D2K uses a different spawn.ini format
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                // For D2K, Scenario should be the map filename without extension
+                string mapFileName = Path.GetFileNameWithoutExtension(Map.BaseFilePath);
+                settings.SetStringValue("Scenario", mapFileName);
+                settings.SetIntValue("MySideID", houseInfos[myIndex].InternalSideIndex);
+                settings.SetIntValue("MissionNumber", 0); // Default, can be overridden by map-specific code
+                settings.SetIntValue("DifficultyLevel", 1); // Default, can be overridden if needed
+                settings.SetIntValue("Seed", RandomSeed);
+                // TextUib is optional and can be set by map-specific code if needed
+            }
+            else
+            {
+                // YR/RA2 format
+                settings.SetStringValue("Scenario", ProgramConstants.SPAWNMAP_INI);
+                settings.SetStringValue("UIGameMode", GameMode.UntranslatedUIName);
+                settings.SetStringValue("UIMapName", Map.UntranslatedName);
+
+                // needed for translation in game loading lobbies
+                if (Map.Official)
+                    settings.SetStringValue("MapID", Map.BaseFilePath);
+
+                settings.SetIntValue("PlayerCount", Players.Count);
+                settings.SetIntValue("Side", houseInfos[myIndex].InternalSideIndex);
+                settings.SetBooleanValue("IsSpectator", houseInfos[myIndex].IsSpectator);
+                settings.SetIntValue("Color", houseInfos[myIndex].ColorIndex);
+                settings.SetStringValue("CustomLoadScreen", LoadingScreenController.GetLoadScreenName(houseInfos[myIndex].InternalSideIndex.ToString()));
+                settings.SetIntValue("AIPlayers", AIPlayers.Count);
+                settings.SetIntValue("Seed", RandomSeed);
+            }
             if (GetPvPTeamCount() > 1)
                 settings.SetBooleanValue("CoachMode", true);
             if (GetGameType() == GameType.Coop)
