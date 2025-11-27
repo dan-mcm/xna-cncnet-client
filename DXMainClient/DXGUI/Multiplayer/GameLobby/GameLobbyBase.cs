@@ -1552,11 +1552,15 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 // For D2K, Scenario should be the map filename without extension
                 string mapFileName = Path.GetFileNameWithoutExtension(Map.BaseFilePath);
                 settings.SetStringValue("Scenario", mapFileName);
-                settings.SetIntValue("MySideID", houseInfos[myIndex].InternalSideIndex);
-                settings.SetIntValue("MissionNumber", 0); // Default, can be overridden by map-specific code
-                settings.SetIntValue("DifficultyLevel", 1); // Default, can be overridden if needed
+                settings.SetStringValue("ScenarioName", Map.UntranslatedName);
+                settings.SetIntValue("MyIndex", myIndex);
+                settings.SetIntValue("Side", houseInfos[myIndex].InternalSideIndex);
+                settings.SetIntValue("Color", houseInfos[myIndex].ColorIndex);
+                settings.SetIntValue("AIPlayers", AIPlayers.Count);
                 settings.SetIntValue("Seed", RandomSeed);
-                // TextUib is optional and can be set by map-specific code if needed
+                settings.SetIntValue("Handicap", 0); // Player handicap, 0 = normal
+                // Port and GameID will be set by WriteSpawnIniAdditions in multiplayer lobbies
+                // Host will be set by WriteSpawnIniAdditions in multiplayer lobbies
             }
             else
             {
@@ -1589,6 +1593,48 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             foreach (GameLobbyDropDown dd in DropDowns)
                 dd.ApplySpawnIniCode(spawnIni);
+
+            // D2K-specific format conversions
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                // Convert boolean values to Yes/No format
+                string[] booleanKeys = { "ShortGame", "Crates", "DisableEngineer", "DisableTurrets", "NoCarryall" };
+                foreach (string key in booleanKeys)
+                {
+                    string value = spawnIni.GetStringValue("Settings", key, string.Empty);
+                    if (!string.IsNullOrEmpty(value))
+                    {
+                        bool boolValue = Conversions.BooleanFromString(value, false);
+                        spawnIni.SetStringValue("Settings", key, boolValue ? "Yes" : "No");
+                    }
+                }
+
+                // Worms should be numeric (0 or 1), not boolean
+                string wormsValue = spawnIni.GetStringValue("Settings", "Worms", string.Empty);
+                if (!string.IsNullOrEmpty(wormsValue))
+                {
+                    bool wormsBool = Conversions.BooleanFromString(wormsValue, false);
+                    spawnIni.SetStringValue("Settings", "Worms", wormsBool ? "1" : "0");
+                }
+
+                // GameSpeed: D2K expects a value like 100, not an index
+                // Map index to speed values: 0=MAX, 1=60, 2=30, 3=20, 4=15, 5=12, 6=10
+                int gameSpeedIndex = spawnIni.GetIntValue("Settings", "GameSpeed", -1);
+                if (gameSpeedIndex >= 0)
+                {
+                    int[] speedValues = { 100, 60, 30, 20, 15, 12, 10 };
+                    if (gameSpeedIndex < speedValues.Length)
+                    {
+                        spawnIni.SetIntValue("Settings", "GameSpeed", speedValues[gameSpeedIndex]);
+                    }
+                }
+
+                // MaxAhead: D2K needs this for multiplayer (default 175)
+                if (!spawnIni.KeyExists("Settings", "MaxAhead"))
+                {
+                    spawnIni.SetIntValue("Settings", "MaxAhead", 175);
+                }
+            }
 
             // Apply forced options from GameOptions.ini
 
