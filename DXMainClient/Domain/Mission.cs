@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using ClientCore;
 using ClientCore.Enums;
 using ClientCore.Extensions;
@@ -16,7 +16,8 @@ namespace DTAClient.Domain
         {
             Index = index;
             CD = iniFile.GetIntValue(sectionName, nameof(CD), 0);
-            Side = iniFile.GetIntValue(sectionName, nameof(Side), 0);
+            Side = GetSideFromIniOrSection(iniFile, sectionName);
+            CampaignID = GetCampaignIdFromIniOrSection(iniFile, sectionName);
             Scenario = iniFile.GetStringValue(sectionName, nameof(Scenario), string.Empty);
             UntranslatedGUIName = iniFile.GetStringValue(sectionName, "Description", "Undefined mission");
             GUIName = UntranslatedGUIName
@@ -36,6 +37,45 @@ namespace DTAClient.Domain
             Enabled = iniFile.GetBooleanValue(sectionName, nameof(Enabled), true);
             BuildOffAlly = iniFile.GetBooleanValue(sectionName, nameof(BuildOffAlly), false);
             PlayerAlwaysOnNormalDifficulty = iniFile.GetBooleanValue(sectionName, nameof(PlayerAlwaysOnNormalDifficulty), false);
+        }
+
+        /// <summary>
+        /// Gets side (house): for D2K from Battle.ini section name (ATR=0, HAR=1, ORD=2); for other games from INI (default 0).
+        /// </summary>
+        private static int GetSideFromIniOrSection(IniFile iniFile, string sectionName)
+        {
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                if (sectionName.Length >= 3)
+                {
+                    switch (sectionName.Substring(0, 3).ToUpperInvariant())
+                    {
+                        case "ATR": return 0;
+                        case "HAR": return 1;
+                        case "ORD": return 2;
+                    }
+                }
+                return 0;
+            }
+            return iniFile.GetIntValue(sectionName, nameof(Side), 0);
+        }
+
+        /// <summary>
+        /// Gets campaign mission number: for D2K from Battle.ini section name (e.g. ATR01 → 1); for other games from INI (default -1).
+        /// </summary>
+        private static int GetCampaignIdFromIniOrSection(IniFile iniFile, string sectionName)
+        {
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                if (sectionName.Length >= 5 && char.IsDigit(sectionName[3]) && char.IsDigit(sectionName[4])
+                    && int.TryParse(sectionName.Substring(3, 2), out int id))
+                    return id;
+                return -1;
+            }
+            int fromIni = iniFile.GetIntValue(sectionName, nameof(CampaignID), -1);
+            if (fromIni < 0)
+                fromIni = iniFile.GetIntValue(sectionName, "MissionNumber", -1);
+            return fromIni;
         }
 
         public int Index { get; }
