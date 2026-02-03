@@ -1581,6 +1581,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 settings.SetIntValue("AIPlayers", AIPlayers.Count);
                 settings.SetIntValue("Seed", RandomSeed);
                 settings.SetIntValue("Handicap", Players[myIndex].Handicap); // Player handicap, 0 = disabled, 1-3 = levels
+                // D2K expects Settings.StartingLocation = 0-based start slot (0 = first, 1 = second, …), or 0 for game-chosen random
+                int myStart = houseInfos[myIndex].StartingWaypoint >= 0
+                    ? houseInfos[myIndex].StartingWaypoint
+                    : 0;
+                settings.SetIntValue("StartingLocation", myStart);
                 // Port and GameID will be set by WriteSpawnIniAdditions in multiplayer lobbies
                 // Host will be set by WriteSpawnIniAdditions in multiplayer lobbies
             }
@@ -1695,6 +1700,14 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 spawnIni.SetIntValue(sectionName, "Color", pHouseInfo.ColorIndex);
                 spawnIni.SetStringValue(sectionName, "Ip", GetIPAddressForPlayer(pInfo));
                 spawnIni.SetIntValue(sectionName, "Port", pInfo.Port);
+
+                // D2K multiplayer: each other player's start and handicap in their section (0-based start slot)
+                if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+                {
+                    int otherStart = pHouseInfo.StartingWaypoint >= 0 ? pHouseInfo.StartingWaypoint : 0;
+                    spawnIni.SetIntValue(sectionName, "StartingLocation", otherStart);
+                    spawnIni.SetIntValue(sectionName, "Handicap", pInfo.Handicap);
+                }
 
                 otherId++;
             }
