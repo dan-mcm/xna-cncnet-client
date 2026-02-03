@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Rampastring.XNAUI;
 using System.Linq;
 using System;
@@ -157,8 +157,7 @@ namespace DTAClient.Domain.Multiplayer.CnCNet
                     InternalName = "d2k",
                     RegistryInstallPath = "HKLM\\Software\\Westwood\\Dune 2000",
                     UIName = "Dune 2000".L10N("Client:ClientCore:Dune2000"),
-                    Texture = AssetLoader.TextureFromImage(d2kIcon),
-                    Supported = false
+                    Texture = AssetLoader.TextureFromImage(d2kIcon)
                 },
 
                 new()
