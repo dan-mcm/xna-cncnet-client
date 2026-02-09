@@ -71,6 +71,7 @@ namespace DTAClient.DXGUI.Campaign
         };
 
         private Mission missionToLaunch;
+        private DateTime? campaignGameProcessStartTime;
 
         public override void Initialize()
         {
@@ -408,6 +409,7 @@ namespace DTAClient.DXGUI.Campaign
 
             discordHandler.UpdatePresence(mission.UntranslatedGUIName, difficultyName, mission.IconPath, true);
             GameProcessLogic.GameProcessExited += GameProcessExited_Callback;
+            campaignGameProcessStartTime = DateTime.UtcNow;
 
             GameProcessLogic.StartGameProcess(WindowManager);
         }
@@ -423,8 +425,15 @@ namespace DTAClient.DXGUI.Campaign
         protected virtual void GameProcessExited()
         {
             GameProcessLogic.GameProcessExited -= GameProcessExited_Callback;
-            // Logger.Log("GameProcessExited: Updating Discord Presence.");
-            discordHandler.UpdatePresence();
+            // Only reset Discord to "In Client" if the process ran for more than a few seconds.
+            // Otherwise it was likely a launcher (e.g. .bat) that exited after starting the real game,
+            // and we should keep showing "Playing Mission" so Discord doesn't flicker back to "In Client".
+            if (campaignGameProcessStartTime.HasValue &&
+                (DateTime.UtcNow - campaignGameProcessStartTime.Value).TotalSeconds >= 3)
+            {
+                discordHandler.UpdatePresence();
+            }
+            campaignGameProcessStartTime = null;
         }
 
         private void ReadMissionList()

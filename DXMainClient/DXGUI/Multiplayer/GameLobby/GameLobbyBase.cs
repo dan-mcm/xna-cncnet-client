@@ -1504,9 +1504,21 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
 
             // Randomize options
 
+            // Use deterministic player order (by name) so host and clients produce the same
+            // spawn assignment when using the same RandomSeed.
             Random pseudoRandom = new Random(RandomSeed);
 
+            var playerIndices = new List<int>(totalPlayerCount);
             for (int i = 0; i < totalPlayerCount; i++)
+                playerIndices.Add(i);
+            playerIndices.Sort((a, b) =>
+            {
+                string nameA = a < Players.Count ? Players[a].Name : ("AI" + (a - Players.Count));
+                string nameB = b < Players.Count ? Players[b].Name : ("AI" + (b - Players.Count));
+                return string.Compare(nameA, nameB, StringComparison.Ordinal);
+            });
+
+            foreach (int i in playerIndices)
             {
                 PlayerInfo pInfo;
                 PlayerHouseInfo pHouseInfo = houseInfos[i];
