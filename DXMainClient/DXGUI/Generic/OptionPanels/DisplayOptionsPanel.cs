@@ -288,16 +288,19 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
             var lblClientTheme = new XNALabel(WindowManager);
             lblClientTheme.Name = nameof(lblClientTheme);
+            // Position theme selector below DDWrapper checkbox (which is at Y=147) to avoid overlap
+            // Use chkBackBufferInVRAM position as reference, or position after DDWrapper if it exists
+            int themeY = chkBackBufferInVRAM.Bottom + 16;
             lblClientTheme.ClientRectangle = new Rectangle(
                 lblClientResolution.X,
-                chkWindowedMode.Y, 0, 0);
+                themeY, 0, 0);
             lblClientTheme.Text = "Client Theme:".L10N("Client:DTAConfig:ClientTheme");
 
             ddClientTheme = new XNAClientDropDown(WindowManager);
             ddClientTheme.Name = nameof(ddClientTheme);
             ddClientTheme.ClientRectangle = new Rectangle(
                 ddClientResolution.X,
-                chkWindowedMode.Y,
+                lblClientTheme.Y - 2,
                 ddClientResolution.Width,
                 ddRenderer.Height);
 
