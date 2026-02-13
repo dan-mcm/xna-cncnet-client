@@ -1,5 +1,6 @@
 using ClientCore.Extensions;
 using ClientCore;
+using ClientCore.Settings;
 using ClientGUI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -19,6 +20,7 @@ using ClientCore.I18N;
 using ClientCore.Enums;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 
 namespace DTAClient.DXGUI.Generic.OptionPanels
 {
@@ -44,6 +46,7 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
         private XNAClientCheckBox chkIntegerScaledClient;
         private XNAClientDropDown ddClientTheme;
         private XNAClientDropDown ddTranslation;
+        private XNAClientDropDown ddBorderColor;
 
         private List<DirectDrawWrapper> renderers;
 
@@ -143,10 +146,41 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                 }
             }
 
+            // Border Color dropdown (D2K only)
+            if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K)
+            {
+                var lblBorderColor = new XNALabel(WindowManager);
+                lblBorderColor.Name = nameof(lblBorderColor);
+                lblBorderColor.ClientRectangle = new Rectangle(lblRenderer.X,
+                    ddRenderer.Bottom + 16, 0, 0);
+                lblBorderColor.Text = "Border Color:".L10N("Client:DTAConfig:BorderColor");
+
+                ddBorderColor = new XNAClientDropDown(WindowManager);
+                ddBorderColor.Name = nameof(ddBorderColor);
+                ddBorderColor.ClientRectangle = new Rectangle(
+                    ddRenderer.X,
+                    lblBorderColor.Y - 2,
+                    ddRenderer.Width,
+                    ddRenderer.Height);
+
+                ddBorderColor.AddItem("Default");
+                ddBorderColor.AddItem("Blue");
+                ddBorderColor.AddItem("Green");
+                ddBorderColor.AddItem("Purple");
+                ddBorderColor.AddItem("Yellow");
+
+                AddChild(lblBorderColor);
+                AddChild(ddBorderColor);
+            }
+
             chkWindowedMode = new XNAClientCheckBox(WindowManager);
             chkWindowedMode.Name = nameof(chkWindowedMode);
+            // Position Windowed Mode after Border Color if D2K, otherwise after Renderer
+            int windowedModeY = ClientConfiguration.Instance.ClientGameType == ClientType.D2K && ddBorderColor != null
+                ? ddBorderColor.Bottom + 16
+                : ddRenderer.Bottom + 16;
             chkWindowedMode.ClientRectangle = new Rectangle(lblDetailLevel.X,
-                ddRenderer.Bottom + 16, 0, 0);
+                windowedModeY, 0, 0);
             chkWindowedMode.Text = "Windowed Mode".L10N("Client:DTAConfig:WindowedMode");
             chkWindowedMode.CheckedChanged += ChkWindowedMode_CheckedChanged;
 
@@ -607,7 +641,12 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                 // enabled through their own config INI file
                 // (for example DxWnd and CnC-DDRAW)
 
-                IniFile rendererSettingsIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GamePath, renderer.ConfigFileName));
+                // For D2K, ddraw.ini is in the d2k subdirectory
+                string rendererConfigPath = ClientConfiguration.Instance.ClientGameType == ClientType.D2K
+                    ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", renderer.ConfigFileName)
+                    : SafePath.CombineFilePath(ProgramConstants.GamePath, renderer.ConfigFileName);
+
+                IniFile rendererSettingsIni = new IniFile(rendererConfigPath);
 
                 chkWindowedMode.Checked = rendererSettingsIni.GetBooleanValue(renderer.WindowedModeSection,
                     renderer.WindowedModeKey, false);
@@ -663,6 +702,52 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             {
                 chkBackBufferInVRAM.Checked = UserINISettings.Instance.BackBufferInVRAM;
             }
+
+            // Load border color setting (D2K only)
+            if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K && ddBorderColor != null)
+            {
+                try
+                {
+                    // Use reflection to safely check if property exists before accessing
+                    var borderColorProperty = typeof(UserINISettings).GetProperty("BorderColor", BindingFlags.Public | BindingFlags.Instance);
+                    if (borderColorProperty != null)
+                    {
+                        var borderColorSetting = borderColorProperty.GetValue(UserINISettings.Instance) as StringSetting;
+                        if (borderColorSetting != null)
+                        {
+                            string borderColor = borderColorSetting.Value;
+                            Logger.Log($"Loading border color setting: {borderColor}");
+                            int borderColorIndex = ddBorderColor.Items.FindIndex(i => i.Text.Equals(borderColor, StringComparison.OrdinalIgnoreCase));
+                            if (borderColorIndex > -1)
+                            {
+                                ddBorderColor.SelectedIndex = borderColorIndex;
+                                Logger.Log($"Set border color dropdown to index {borderColorIndex} ({borderColor})");
+                            }
+                            else
+                            {
+                                Logger.Log($"Border color '{borderColor}' not found in dropdown, defaulting to 'Default'");
+                                ddBorderColor.SelectedIndex = 0;
+                            }
+                        }
+                        else
+                        {
+                            Logger.Log("BorderColor setting is null, defaulting to 'Default'");
+                            ddBorderColor.SelectedIndex = 0;
+                        }
+                    }
+                    else
+                    {
+                        Logger.Log("BorderColor property not found via reflection, defaulting to 'Default'");
+                        ddBorderColor.SelectedIndex = 0;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // BorderColor property not available (old build), default to "Default"
+                    Logger.Log($"Failed to load border color setting: {ex.Message}");
+                    ddBorderColor.SelectedIndex = 0;
+                }
+            }
         }
 
         public override bool Save()
@@ -674,6 +759,39 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
             ScreenResolution ingameRes = ddIngameResolution.SelectedItem.Text;
 
             (IniSettings.IngameScreenWidth.Value, IniSettings.IngameScreenHeight.Value) = ingameRes;
+
+            // For D2K, also update dune2000.ini with the game resolution and fullscreen setting
+            if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K)
+            {
+                string dune2000IniPath = SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", "dune2000.ini");
+                if (File.Exists(dune2000IniPath))
+                {
+                    try
+                    {
+                        IniFile dune2000Ini = new IniFile(dune2000IniPath);
+                        dune2000Ini.SetIntValue("Options", "GameWidth", ingameRes.Width);
+                        dune2000Ini.SetIntValue("Options", "GameHeight", ingameRes.Height);
+                        
+                        // Set Fullscreen based on windowed mode checkboxes
+                        // If windowed mode or borderless windowed mode is enabled, set Fullscreen=No
+                        // Otherwise, set Fullscreen=Yes
+                        bool isWindowed = chkWindowedMode.Checked || chkBorderlessWindowedMode.Checked;
+                        string fullscreenValue = !isWindowed ? "Yes" : "No";
+                        dune2000Ini.SetStringValue("Options", "Fullscreen", fullscreenValue);
+                        
+                        dune2000Ini.WriteIniFile();
+                        Logger.Log($"Updated dune2000.ini with resolution {ingameRes.Width}x{ingameRes.Height} and Fullscreen={(!isWindowed ? "Yes" : "No")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Failed to update dune2000.ini: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Logger.Log($"dune2000.ini not found at {dune2000IniPath}");
+                }
+            }
 
             // Calculate drag selection distance, scale it with resolution width
             int dragDistance = ingameRes.Width / ORIGINAL_RESOLUTION_WIDTH * DRAG_DISTANCE_DEFAULT;
@@ -767,25 +885,140 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
 
             if (selectedRenderer.UsesCustomWindowedOption())
             {
-                IniFile rendererSettingsIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GamePath, selectedRenderer.ConfigFileName));
+                // For D2K, ddraw.ini is in the d2k subdirectory
+                string ddrawIniPath = ClientConfiguration.Instance.ClientGameType == ClientType.D2K
+                    ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", selectedRenderer.ConfigFileName)
+                    : SafePath.CombineFilePath(ProgramConstants.GamePath, selectedRenderer.ConfigFileName);
 
-                rendererSettingsIni.SetBooleanValue(selectedRenderer.WindowedModeSection,
-                    selectedRenderer.WindowedModeKey, chkWindowedMode.Checked);
-
-                if (!string.IsNullOrEmpty(selectedRenderer.BorderlessWindowedModeKey))
+                if (!File.Exists(ddrawIniPath))
                 {
-                    bool borderlessModeIniValue = chkBorderlessWindowedMode.Checked;
-                    if (selectedRenderer.IsBorderlessWindowedModeKeyReversed)
-                        borderlessModeIniValue = !borderlessModeIniValue;
-
-                    rendererSettingsIni.SetBooleanValue(selectedRenderer.WindowedModeSection,
-                        selectedRenderer.BorderlessWindowedModeKey, borderlessModeIniValue);
+                    Logger.Log($"ddraw.ini not found at {ddrawIniPath}, it will be created");
                 }
 
-                rendererSettingsIni.WriteIniFile();
+                try
+                {
+                    IniFile rendererSettingsIni = new IniFile(ddrawIniPath);
+
+                    // For D2K, use lowercase boolean format to match ddraw.ini file format
+                    BooleanStringStyle boolStyle = ClientConfiguration.Instance.ClientGameType == ClientType.D2K
+                        ? BooleanStringStyle.TRUEFALSE_LOWERCASE
+                        : BooleanStringStyle.TRUEFALSE;
+
+                    // Get or create the section, then set boolean values with the specified style
+                    var windowedSection = rendererSettingsIni.GetSection(selectedRenderer.WindowedModeSection);
+                    if (windowedSection == null)
+                    {
+                        rendererSettingsIni.AddSection(selectedRenderer.WindowedModeSection);
+                        windowedSection = rendererSettingsIni.GetSection(selectedRenderer.WindowedModeSection);
+                    }
+
+                    windowedSection.SetBooleanValue(selectedRenderer.WindowedModeKey, chkWindowedMode.Checked, boolStyle);
+
+                    if (!string.IsNullOrEmpty(selectedRenderer.BorderlessWindowedModeKey))
+                    {
+                        bool borderlessModeIniValue = chkBorderlessWindowedMode.Checked;
+                        if (selectedRenderer.IsBorderlessWindowedModeKeyReversed)
+                            borderlessModeIniValue = !borderlessModeIniValue;
+
+                        windowedSection.SetBooleanValue(selectedRenderer.BorderlessWindowedModeKey, borderlessModeIniValue, boolStyle);
+                    }
+
+                    // For D2K, also update fullscreen, width, and height in ddraw.ini
+                    if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K)
+                    {
+                        bool isWindowed = chkWindowedMode.Checked || chkBorderlessWindowedMode.Checked;
+                        var ddrawSection = rendererSettingsIni.GetSection("ddraw");
+                        if (ddrawSection == null)
+                        {
+                            rendererSettingsIni.AddSection("ddraw");
+                            ddrawSection = rendererSettingsIni.GetSection("ddraw");
+                        }
+                        
+                        ddrawSection.SetBooleanValue("fullscreen", !isWindowed, BooleanStringStyle.TRUEFALSE_LOWERCASE);
+                        rendererSettingsIni.SetIntValue("ddraw", "width", ingameRes.Width);
+                        rendererSettingsIni.SetIntValue("ddraw", "height", ingameRes.Height);
+                        
+                        Logger.Log($"Updated ddraw.ini at {ddrawIniPath}: windowed={chkWindowedMode.Checked}, fullscreen={!isWindowed}, width={ingameRes.Width}, height={ingameRes.Height}");
+                    }
+
+                    rendererSettingsIni.WriteIniFile();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to update ddraw.ini at {ddrawIniPath}: {ex.Message}");
+                }
             }
 
             IniSettings.Renderer.Value = selectedRenderer.InternalName;
+
+            // Save border color and copy file (D2K only)
+            if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K && ddBorderColor != null)
+            {
+                try
+                {
+                    if (ddBorderColor.SelectedItem == null)
+                    {
+                        Logger.Log("Border color dropdown has no selected item, skipping save");
+                    }
+                    else
+                    {
+                        string selectedColor = ddBorderColor.SelectedItem.Text;
+                        Logger.Log($"Attempting to save border color: {selectedColor}");
+                        
+                        // Use reflection to safely check if property exists before accessing
+                        var borderColorProperty = typeof(UserINISettings).GetProperty("BorderColor", BindingFlags.Public | BindingFlags.Instance);
+                        if (borderColorProperty != null)
+                        {
+                            try
+                            {
+                                var borderColorSetting = borderColorProperty.GetValue(UserINISettings.Instance) as StringSetting;
+                                if (borderColorSetting != null)
+                                {
+                                    string oldValue = borderColorSetting.Value;
+                                    borderColorSetting.Value = selectedColor;
+                                    Logger.Log($"Border color setting updated from '{oldValue}' to '{selectedColor}'. INI file: {UserINISettings.Instance.SettingsIni.FileName}");
+                                }
+                                else
+                                {
+                                    Logger.Log("BorderColor setting is null, cannot save");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.Log($"Failed to save border color setting: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            Logger.Log("BorderColor property not found via reflection, skipping save");
+                        }
+
+                        string sourceFile = SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", "Jo-Uib", selectedColor, "UIBB_1024x768.R16");
+                        string targetFile = SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", "data", "UIBB_1024x768.R16");
+
+                        if (File.Exists(sourceFile))
+                        {
+                            // Remove read-only attribute if it exists
+                            FileInfo targetFileInfo = SafePath.GetFile(targetFile);
+                            if (targetFileInfo.Exists && targetFileInfo.IsReadOnly)
+                            {
+                                targetFileInfo.IsReadOnly = false;
+                            }
+
+                            File.Copy(sourceFile, targetFile, true);
+                            Logger.Log($"Copied border color file from {sourceFile} to {targetFile}");
+                        }
+                        else
+                        {
+                            Logger.Log($"Border color source file not found: {sourceFile}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Failed to save border color setting or copy file: {ex.Message}");
+                }
+            }
 
             if (ClientConfiguration.Instance.ClientGameType == ClientType.TS)
             {
