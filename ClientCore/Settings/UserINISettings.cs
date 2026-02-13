@@ -155,6 +155,7 @@ namespace ClientCore
             AutoRemoveUnderscoresFromName = new BoolSetting(iniFile, OPTIONS, "AutoRemoveUnderscoresFromName", true);
             GenerateTranslationStub = new BoolSetting(iniFile, OPTIONS, nameof(GenerateTranslationStub), false);
             GenerateOnlyNewValuesInTranslationStub = new BoolSetting(iniFile, OPTIONS, nameof(GenerateOnlyNewValuesInTranslationStub), false);
+            LiveAPMTracker = new BoolSetting(iniFile, OPTIONS, "LiveAPMTracker", false);
 
             SortState = new IntSetting(iniFile, GAME_FILTERS, "SortState", (int)SortDirection.None);
             ShowFriendGamesOnly = new BoolSetting(iniFile, GAME_FILTERS, "ShowFriendGamesOnly", DEFAULT_SHOW_FRIENDS_ONLY_GAMES);
@@ -294,6 +295,7 @@ namespace ClientCore
         public BoolSetting GenerateTranslationStub { get; private set; }
 
         public BoolSetting GenerateOnlyNewValuesInTranslationStub { get; private set; }
+        public BoolSetting LiveAPMTracker { get; private set; }
 
         public List<string> FavoriteMaps { get; private set; }
 
