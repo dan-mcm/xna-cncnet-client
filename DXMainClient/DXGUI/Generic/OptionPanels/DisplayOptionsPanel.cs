@@ -95,6 +95,19 @@ namespace DTAClient.DXGUI.Generic.OptionPanels
                     ClientConfiguration.Instance.MinimumIngameWidth, ClientConfiguration.Instance.MinimumIngameHeight,
                     maximumIngameResolution.Width, maximumIngameResolution.Height);
 
+                // Add D2K-specific resolutions that should always be available
+                if (ClientConfiguration.Instance.ClientGameType == ClientType.D2K)
+                {
+                    ScreenResolution res640x480 = new ScreenResolution(640, 480);
+                    ScreenResolution res960x720 = new ScreenResolution(960, 720);
+                    
+                    // Check if they fit within the maximum resolution and add them if not already present
+                    if (maximumIngameResolution.Fits(res640x480))
+                        resolutions.Add(res640x480);
+                    if (maximumIngameResolution.Fits(res960x720))
+                        resolutions.Add(res960x720);
+                }
+
                 foreach (var res in resolutions)
                     ddIngameResolution.AddItem(res.ToString());
             }
