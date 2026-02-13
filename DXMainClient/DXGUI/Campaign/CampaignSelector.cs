@@ -293,7 +293,11 @@ namespace DTAClient.DXGUI.Campaign
         {
             string scenario = mission.Scenario;
             
-            FileInfo spawnerSettingsFile = SafePath.GetFile(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS);
+            // For D2K, write spawn.ini directly to d2k\spawn.ini instead of the root
+            string spawnIniPath = ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase)
+                ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", ProgramConstants.SPAWNER_SETTINGS)
+                : SafePath.CombineFilePath(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS);
+            FileInfo spawnerSettingsFile = SafePath.GetFile(spawnIniPath);
 
             spawnerSettingsFile.Delete();
 

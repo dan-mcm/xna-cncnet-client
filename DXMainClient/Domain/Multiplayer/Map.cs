@@ -274,6 +274,9 @@ namespace DTAClient.Domain.Multiplayer
         [JsonIgnore]
         private List<KeyValuePair<string, string>> ForcedSpawnIniOptions = new List<KeyValuePair<string, string>>(0);
 
+        [JsonIgnore]
+        private List<KeyValuePair<string, string>> Vars = new List<KeyValuePair<string, string>>(0);
+
         /// <summary>
         /// This is used to load a map from the MPMaps.ini (default name) file.
         /// </summary>
@@ -429,6 +432,15 @@ namespace DTAClient.Domain.Multiplayer
                     string[] sections = forcedSpawnIniOptionsSections.Split(',');
                     foreach (string fsioSection in sections)
                         ParseSpawnIniOptions(iniFile, fsioSection);
+                }
+
+                string varsSections = iniFile.GetStringValue(BaseFilePath, "Vars", string.Empty);
+
+                if (!string.IsNullOrEmpty(varsSections))
+                {
+                    string[] sections = varsSections.Split(',');
+                    foreach (string varsSection in sections)
+                        ParseVars(iniFile, varsSection);
                 }
 
                 return true;
@@ -683,6 +695,23 @@ namespace DTAClient.Domain.Multiplayer
             }
         }
 
+        private void ParseVars(IniFile iniFile, string varsSection)
+        {
+            List<string> varsKeys = iniFile.GetSectionKeys(varsSection);
+
+            if (varsKeys == null)
+            {
+                Logger.Log("Invalid Vars section \"" + varsSection + "\" in map " + BaseFilePath);
+                return;
+            }
+
+            foreach (string key in varsKeys)
+            {
+                Vars.Add(new KeyValuePair<string, string>(key,
+                    iniFile.GetStringValue(varsSection, key, string.Empty)));
+            }
+        }
+
         public bool IsPreviewTextureCached() =>
             SafePath.GetFile(ProgramConstants.GamePath, PreviewPath).Exists;
 
@@ -725,6 +754,19 @@ namespace DTAClient.Domain.Multiplayer
             }
 
             return mapIni;
+        }
+
+        public void ApplyMapIniVars(IniFile mapIni)
+        {
+            if (Vars.Count == 0)
+                return;
+
+            // Ensure Vars section exists
+            if (!mapIni.SectionExists("Vars"))
+                mapIni.AddSection("Vars");
+
+            foreach (KeyValuePair<string, string> key in Vars)
+                mapIni.SetStringValue("Vars", key.Key, key.Value);
         }
 
         public void ApplySpawnIniCode(IniFile spawnIni, int totalPlayerCount,

@@ -1551,7 +1551,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
         {
             Logger.Log("Writing spawn.ini");
 
-            FileInfo spawnerSettingsFile = SafePath.GetFile(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS);
+            // For D2K, write spawn.ini directly to d2k\spawn.ini instead of the root
+            string spawnIniPath = ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase)
+                ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", ProgramConstants.SPAWNER_SETTINGS)
+                : SafePath.CombineFilePath(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS);
+            FileInfo spawnerSettingsFile = SafePath.GetFile(spawnIniPath);
 
             spawnerSettingsFile.Delete();
 
@@ -1673,6 +1677,9 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 {
                     spawnIni.SetIntValue("Settings", "MaxAhead", 175);
                 }
+
+                // Remove BuildQueuesEnabled from spawn.ini - build queues are handled in map INI [Vars] section, not spawn.ini
+                spawnIni.RemoveKey("Settings", "BuildQueuesEnabled");
             }
 
             // Apply forced options from GameOptions.ini
@@ -1941,6 +1948,41 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             foreach (GameLobbyDropDown dropDown in DropDowns)
                 dropDown.ApplyMapCode(mapIni, GameMode);
 
+            // Apply Vars from MPMaps.ini to the map INI
+            Map.ApplyMapIniVars(mapIni);
+
+            // D2K-specific: Handle build queues checkbox - set Vars based on checkbox state
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                GameLobbyCheckBox buildQueuesCheckBox = CheckBoxes.Find(chk => chk.Name == "chkBuildQueues");
+                if (buildQueuesCheckBox == null)
+                {
+                    Logger.Log("Build queues checkbox not found in CheckBoxes list");
+                }
+                else
+                {
+                    // Ensure Vars section exists
+                    if (!mapIni.SectionExists("Vars"))
+                        mapIni.AddSection("Vars");
+
+                    if (buildQueuesCheckBox.Checked)
+                    {
+                        Logger.Log("Build queues checkbox is checked - enabling build queues in map INI");
+                        mapIni.SetStringValue("Vars", "buildQueuesEnabled", "Yes");
+                        mapIni.SetIntValue("Vars", "buildQueuesMaxPerFactory", 100);
+                        mapIni.SetIntValue("Vars", "buildQueuesMaxPerUnitType", 10);
+                        mapIni.SetIntValue("Vars", "buildQueuesBulkIncrement", 5);
+                        mapIni.SetStringValue("Vars", "buildQueuesInfinityEnabled", "No");
+                        Logger.Log("Added build queue Vars to map INI");
+                    }
+                    else
+                    {
+                        Logger.Log("Build queues checkbox is not checked - disabling build queues in map INI");
+                        mapIni.SetStringValue("Vars", "buildQueuesEnabled", "No");
+                    }
+                }
+            }
+
             mapIni.MoveSectionToFirst("MultiplayerDialogSettings"); // Required by YR
 
             CopySupplementalMapFiles(mapIni);
@@ -1948,6 +1990,37 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             ManipulateStartingLocations(mapIni, houseInfos);
 
             mapIni.WriteIniFile(spawnMapIniFile.FullName);
+
+            // D2K-specific: Write the modified map INI to d2k\data\maps\<scenario>.ini
+            // This is where the game actually reads the map INI from (not spawnmap.ini)
+            // We write here AFTER modifying it with Vars, so the game gets the updated version
+            if (ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase))
+            {
+                // Get scenario name from map file path (same logic as WriteSpawnIni uses)
+                // BaseFilePath is like "Maps/Standard/032cf10c246b5fbfa54b78451786a9fe1ff58678"
+                // Extract just the filename: "032cf10c246b5fbfa54b78451786a9fe1ff58678"
+                string mapFileName = Path.GetFileNameWithoutExtension(Map.BaseFilePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
+                
+                if (!string.IsNullOrEmpty(mapFileName))
+                {
+                    string d2kMapIniPath = SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", "data", "maps", mapFileName + ".ini");
+                    try
+                    {
+                        // Ensure directory exists
+                        string d2kMapsDir = Path.GetDirectoryName(d2kMapIniPath);
+                        if (!Directory.Exists(d2kMapsDir))
+                            Directory.CreateDirectory(d2kMapsDir);
+
+                        // Write the modified map INI (with Vars if checkbox was checked) to where the game reads it
+                        mapIni.WriteIniFile(d2kMapIniPath);
+                        Logger.Log("Wrote D2K map INI with modifications to " + d2kMapIniPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log("Failed to write D2K map INI to " + d2kMapIniPath + ": " + ex.Message);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -2100,7 +2173,11 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
             // because we'd need to modify the map anyway.
             // Not sure whether having it like this or in WriteSpawnIni
             // is better, but this implementation is quicker to write for now.
-            IniFile spawnIni = new IniFile(SafePath.CombineFilePath(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS));
+            // For D2K, spawn.ini is in d2k\spawn.ini instead of the root
+            string spawnIniPath = ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase)
+                ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", ProgramConstants.SPAWNER_SETTINGS)
+                : SafePath.CombineFilePath(ProgramConstants.GamePath, ProgramConstants.SPAWNER_SETTINGS);
+            IniFile spawnIni = new IniFile(spawnIniPath);
 
             // For each player, check if they're sharing the starting location
             // with someone else

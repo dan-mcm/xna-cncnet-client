@@ -284,7 +284,11 @@ namespace DTAClient.DXGUI.Multiplayer
 
         protected void LoadGame()
         {
-            FileInfo spawnFileInfo = SafePath.GetFile(ProgramConstants.GamePath, "spawn.ini");
+            // For D2K, write spawn.ini directly to d2k\spawn.ini instead of the root
+            string spawnIniPath = ClientConfiguration.Instance.LocalGame.Equals("d2k", StringComparison.OrdinalIgnoreCase)
+                ? SafePath.CombineFilePath(ProgramConstants.GamePath, "d2k", "spawn.ini")
+                : SafePath.CombineFilePath(ProgramConstants.GamePath, "spawn.ini");
+            FileInfo spawnFileInfo = SafePath.GetFile(spawnIniPath);
 
             spawnFileInfo.Delete();
 
