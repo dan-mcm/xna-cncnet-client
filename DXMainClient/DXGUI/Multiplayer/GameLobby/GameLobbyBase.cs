@@ -1064,7 +1064,6 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 ddPlayerHandicap.ClientRectangle = new Rectangle(
                     ddPlayerStart.Right + playerOptionHorizontalMargin,
                     ddPlayerName.Y, handicapWidth, DROP_DOWN_HEIGHT);
-                ddPlayerHandicap.AddItem("Disabled".L10N("Client:Main:HandicapDisabled"));
                 ddPlayerHandicap.AddItem("Level 1".L10N("Client:Main:HandicapLevel1"));
                 ddPlayerHandicap.AddItem("Level 2".L10N("Client:Main:HandicapLevel2"));
                 ddPlayerHandicap.AddItem("Level 3".L10N("Client:Main:HandicapLevel3"));
@@ -1596,7 +1595,8 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 settings.SetIntValue("Color", houseInfos[myIndex].ColorIndex);
                 settings.SetIntValue("AIPlayers", AIPlayers.Count);
                 settings.SetIntValue("Seed", RandomSeed);
-                settings.SetIntValue("Handicap", Players[myIndex].Handicap); // Player handicap, 0 = disabled, 1-3 = levels
+                // Player handicap (D2K): Level 1->0, Level 2->1, Level 3->2
+                settings.SetIntValue("Handicap", Players[myIndex].Handicap);
                 // D2K expects Settings.StartingLocation = 0-based start slot (0 = first, 1 = second, …), or 0 for game-chosen random
                 int myStart = houseInfos[myIndex].StartingWaypoint >= 0
                     ? houseInfos[myIndex].StartingWaypoint
@@ -2272,6 +2272,7 @@ namespace DTAClient.DXGUI.Multiplayer.GameLobby
                 pInfo.SideId = ddPlayerSides[pId].SelectedIndex;
                 pInfo.StartingLocation = ddPlayerStarts[pId].SelectedIndex;
                 pInfo.TeamId = ddPlayerTeams[pId].SelectedIndex;
+                // Handicap mapping: Level 1->0, Level 2->1, Level 3->2
                 pInfo.Handicap = ddPlayerHandicaps[pId].SelectedIndex;
 
                 if (pInfo.SideId == SideCount + RandomSelectorCount)
